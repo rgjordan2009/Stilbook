@@ -17,6 +17,10 @@ class Chat():
         self.__s = s
         print('Hearing on {}:{}'.format(host, port))
         print('use for :"/help" for help')
+        global muter
+        global muted
+        muted=[]
+        muter=0
         global username
         username=""
 
@@ -27,7 +31,10 @@ class Chat():
             '/join': self._join,
             '/send': self._send,
             '/nick': self._nick,
-            '/help': self._help
+            '/help': self._help,
+            '/mute':self._mute,
+            '/unmute':self._unmute,
+            '/mutelist':self._mutelist
         }
         self.__running = True
         self.__address = None
@@ -42,9 +49,9 @@ class Chat():
                 try:
                     handlers[command]() if param == '' else handlers[command](param)
                 except:
-                    print("Erreur lors de l'execution de la commande.")
+                    print("Error during command execution.")
             else:
-                print('Command inconnue:', command)
+                print('Unknown Command:', command)
 
     def _exit(self):
         self.__running = False
@@ -59,16 +66,31 @@ class Chat():
         if len(tokens) == 2:
             try:
                 self.__address = (socket.gethostbyaddr(tokens[0])[0], int(tokens[1]))
-                print('Connecte a {}:{}'.format(*self.__address))
+                print('Connected to {}:{}'.format(*self.__address))
+                self._joining(" {} joined the port".format(username))
             except OSError:
-                print("Erreur lors de l'envoi du message.")
+                print("Error during command execution.")
+        else:
+            print("Join command could not be executed")
+
+    def _joining(self,param): #indique la presence dans un chatroom/join
+        if self.__address is not None:
+            try:
+                param = param
+                message = param.encode()
+                totalsent = 0
+                while totalsent < len(message):
+                    sent = self.__s.sendto(message[totalsent:], self.__address)
+                    totalsent += sent
+            except OSError:
+                print('Error 404')
 
     def _send(self, param):
         if self.__address is not None:
             try:
-                if username=="":
-                    name=input("please choose a username to talk in on the chat: ")
-                    self._nick(name)
+                #if username=="":
+                    #name=input("please choose a username to talk in on the chat: ")
+                    #self._nick(name)
                 param = username+" : " + param
                 message = param.encode()
                 totalsent = 0
@@ -77,22 +99,59 @@ class Chat():
                     totalsent += sent
                 print("message sent")
             except OSError:
-                print('Erreur lors de la reception du message.')
+                print('Error during command execution.')
+        else:
+            print("No port joined yet")
 
     def _receive(self):
         while self.__running:
             try:
                 localtime = time.asctime( time.localtime(time.time()) )
                 data, address = self.__s.recvfrom(1024)
+                if muter ==1:
+                    x=data.decode().split(':')
+                    x[0]=x[0].rstrip()
+                    if str(x[0]) in muted:
+                        pass
+                    else:
+                        print("{}  sent at {} from IP:{}".format(data.decode(),localtime,address))
 
-                print("{}  sent at {} from IP:{}".format(data.decode(),localtime,address))
+                else:
+                    print("{}  sent at {} from IP:{}".format(data.decode(),localtime,address))
             except socket.timeout:
                 pass
             except OSError:
                 return
+    def _mute(self,param):
+        global muted
+        global muter
+        muter=1
+        muted.append(param)
+    def _unmute(self,param):
+        if param not in muted:
+            print('{} not on the blacklist'.format(param))
+            pass
+        else:
+            if muted == []:
+                print('No one is on the blacklist')
+            else:
+                muted.remove(param)
+                print('{} was deleted from blacklist'.format(param))
+    def _mutelist(self):
+        if muted == []:
+            print('No one is on the blacklist')
+        else:
+            print('Blacklist:')
+            for i in muted:
+                print(i)
+
+
+
+
     def _nick(self, param):
         global username
         username=param
+
     def _help(self):
         print('Possible commands:')
         print('/exit','to exit the chat application')
@@ -100,7 +159,9 @@ class Chat():
         print('/join','to join a chat room example:"/join 28.12.18.04 5000"')
         print('/send','to send a message to members of the same chatroom example:"/send Hello World')
         print('/nick','to chose a nickname to chat ;) example:"/nick Fayon')
-
+        print('/mute','to mute an other user example:"/mute Test')
+        print('/unmute','to unmute an other user example:"/unmute Test')
+        print('/mutelist','to show Blacklist "example:"/mutelist"')
 
 if __name__ == '__main__':
     if len(sys.argv) == 3:
